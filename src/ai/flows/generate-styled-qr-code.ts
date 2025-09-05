@@ -11,11 +11,19 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import QRCodeSVG from 'qrcode-svg';
 
-const GenerateStyledQrCodeInputSchema = z.object({
-  url: z.string().url().describe('The URL to encode in the QR code.'),
-  colorDark: z.string().regex(/^#[0-9A-Fa-f]{6}$/).describe('The color of the dark modules, as a hex code (e.g. #000000).'),
-  colorLight: z.string().regex(/^#[0-9A-Fa-f]{6}$/).describe('The color of the light modules, as a hex code (e.g. #FFFFFF).'),
+const WifiSchema = z.object({
+  type: z.literal('wifi'),
+  ssid: z.string().describe('The name of the Wi-Fi network (SSID).'),
+  password: z.string().describe('The password for the Wi-Fi network.'),
+  encryption: z.enum(['WPA', 'WEP', 'nopass']).describe('The encryption type of the Wi-Fi network.'),
 });
+
+const UrlSchema = z.object({
+  type: z.literal('url'),
+  url: z.string().url().describe('The URL to encode in the QR code.'),
+});
+
+const GenerateStyledQrCodeInputSchema = z.union([WifiSchema, UrlSchema]);
 export type GenerateStyledQrCodeInput = z.infer<typeof GenerateStyledQrCodeInputSchema>;
 
 const GenerateStyledQrCodeOutputSchema = z.object({
@@ -34,11 +42,19 @@ const generateStyledQrCodeFlow = ai.defineFlow(
     outputSchema: GenerateStyledQrCodeOutputSchema,
   },
   async input => {
-    // Generate the QR code as an SVG string using qrcode-svg library.
+    let content = '';
+    if (input.type === 'url') {
+      content = input.url;
+    } else if (input.type === 'wifi') {
+      // Format for Wi-Fi QR codes: WIFI:T:<encryption>;S:<ssid>;P:<password>;;
+      const encryption = input.encryption === 'nopass' ? 'nopass' : input.encryption;
+      content = `WIFI:T:${encryption};S:${input.ssid};P:${input.password};;`;
+    }
+
     const qrCode = new QRCodeSVG({
-      content: input.url,
-      color: input.colorDark,
-      background: input.colorLight,
+      content: content,
+      color: '#ffffff',
+      background: '#000000',
       ecl: 'M', // Error Correction Level
       width: 256,
       height: 256,

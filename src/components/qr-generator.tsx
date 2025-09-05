@@ -10,29 +10,37 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Download, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, Download, RefreshCw, ZoomIn, ZoomOut, Link, Wifi } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 const qrCodeSchema = z.object({
-  url: z.string().min(1, { message: "URL cannot be empty." }).url({ message: "Please enter a valid URL." }),
-  foreground: z.string().regex(/^#[0-9A-Fa-f]{6}$/, { message: "Invalid hex color." }),
-  background: z.string().regex(/^#[0-9A-Fa-f]{6}$/, { message: "Invalid hex color." }),
+  type: z.enum(["url", "wifi"]),
+  url: z.string().optional(),
+  ssid: z.string().optional(),
+  password: z.string().optional(),
+  encryption: z.enum(["WPA", "WEP", "nopass"]).optional(),
+}).refine(data => {
+    if (data.type === 'url') {
+      return !!data.url && z.string().url().safeParse(data.url).success;
+    }
+    return true;
+}, {
+    message: "Please enter a valid URL.",
+    path: ['url'],
+}).refine(data => {
+    if (data.type === 'wifi') {
+        return !!data.ssid;
+    }
+    return true;
+}, {
+    message: "Network name cannot be empty.",
+    path: ['ssid'],
 });
 
-type QRCodeFormValues = z.infer<typeof qrCodeSchema>;
 
-const ColorInput = ({ field }: { field: any }) => (
-    <div className="relative flex h-10 w-full items-center">
-      <Input type="text" {...field} className="pl-12" />
-      <div className="absolute left-1 top-1/2 -translate-y-1/2 p-1">
-        <input
-            type="color"
-            className="h-7 w-8 cursor-pointer appearance-none border-none bg-transparent p-0"
-            value={field.value}
-            onChange={field.onChange}
-        />
-      </div>
-    </div>
-);
+type QRCodeFormValues = z.infer<typeof qrCodeSchema>;
 
 export function QRGenerator() {
   const [isPending, startTransition] = useTransition();
@@ -43,22 +51,30 @@ export function QRGenerator() {
   const form = useForm<QRCodeFormValues>({
     resolver: zodResolver(qrCodeSchema),
     defaultValues: {
+      type: "url",
       url: "",
-      foreground: "#000000",
-      background: "#ffffff",
+      ssid: "",
+      password: "",
+      encryption: "WPA",
     },
   });
+
+  const qrType = form.watch("type");
 
   const onSubmit = (values: QRCodeFormValues) => {
     setQrCodeSvg(null);
     startTransition(async () => {
       try {
-        // Generate the QR code with the original URL
-        const result = await generateStyledQrCode({
-          url: values.url,
-          colorDark: values.foreground,
-          colorLight: values.background,
-        });
+        let result;
+        if (values.type === 'url' && values.url) {
+            result = await generateStyledQrCode({ type: 'url', url: values.url });
+        } else if (values.type === 'wifi' && values.ssid) {
+            result = await generateStyledQrCode({ type: 'wifi', ssid: values.ssid, password: values.password || '', encryption: values.encryption || 'WPA' });
+        } else {
+            // Should not happen with validation
+            return;
+        }
+        
         setQrCodeSvg(result.svg);
       } catch (error) {
         console.error("QR Code generation failed:", error);
@@ -70,6 +86,12 @@ export function QRGenerator() {
       }
     });
   };
+  
+  const handleRegenerate = () => {
+    if(form.getValues('url') || form.getValues('ssid')) {
+        onSubmit(form.getValues());
+    }
+  }
 
   const handleDownload = () => {
     if (!qrCodeSvg) return;
@@ -112,56 +134,130 @@ export function QRGenerator() {
   };
 
   return (
-    <Card className="w-full overflow-hidden shadow-2xl shadow-primary/10 transition-all duration-300">
+    <Card className="w-full overflow-hidden border-0 bg-white/5 shadow-2xl shadow-primary/10 transition-all duration-300 backdrop-blur-lg">
       <CardContent className="p-0">
         <div className="grid md:grid-cols-2">
           <div className="p-6 sm:p-8">
             <h3 className="text-2xl font-semibold tracking-tight">Create Your QR Code</h3>
-            <p className="mt-2 text-muted-foreground">Enter a URL and customize the colors.</p>
+            <p className="mt-2 text-muted-foreground">Generate a QR code for a URL or Wi-Fi network.</p>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-6">
                 <FormField
                   control={form.control}
-                  name="url"
+                  name="type"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Website URL</FormLabel>
+                    <FormItem className="space-y-3">
+                      <FormLabel>QR Code Type</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://example.com" {...field} />
+                        <RadioGroup
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            form.clearErrors();
+                            setQrCodeSvg(null); // Clear QR on type change
+                          }}
+                          defaultValue={field.value}
+                          className="grid grid-cols-2 gap-4"
+                        >
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                                <div className={`flex w-full items-center rounded-md p-3 transition-colors ${field.value === 'url' ? 'bg-primary/20 border-primary' : 'border border-input'}`}>
+                                    <RadioGroupItem value="url" id="url" className="peer sr-only" />
+                                    <label htmlFor="url" className="flex items-center gap-3 cursor-pointer">
+                                        <Link className="h-5 w-5" />
+                                        <span className="font-medium">URL</span>
+                                    </label>
+                                </div>
+                            </FormControl>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                                <div className={`flex w-full items-center rounded-md p-3 transition-colors ${field.value === 'wifi' ? 'bg-primary/20 border-primary' : 'border border-input'}`}>
+                                    <RadioGroupItem value="wifi" id="wifi" className="peer sr-only" />
+                                    <label htmlFor="wifi" className="flex items-center gap-3 cursor-pointer">
+                                        <Wifi className="h-5 w-5" />
+                                        <span className="font-medium">Wi-Fi</span>
+                                    </label>
+                                </div>
+                            </FormControl>
+                           </FormItem>
+                        </RadioGroup>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                
+                <Separator />
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="foreground"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Foreground</FormLabel>
-                        <FormControl>
-                           <ColorInput field={field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="background"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Background</FormLabel>
-                        <FormControl>
-                          <ColorInput field={field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                {qrType === 'url' && (
+                    <FormField
+                      control={form.control}
+                      name="url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Website URL</FormLabel>
+                          <FormControl>
+                            <Input placeholder="https://example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                )}
+                
+                {qrType === 'wifi' && (
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="ssid"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Network Name (SSID)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Your Wi-Fi Name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="Your Network Password" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="encryption"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Encryption</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select encryption type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="WPA">WPA/WPA2</SelectItem>
+                              <SelectItem value="WEP">WEP</SelectItem>
+                              <SelectItem value="nopass">No Password</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
 
                 <Button type="submit" className="w-full" disabled={isPending}>
                   {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -171,8 +267,8 @@ export function QRGenerator() {
             </Form>
           </div>
 
-          <div className="flex flex-col items-center justify-center space-y-4 bg-muted/50 p-6 sm:p-8 border-l">
-            <div className={`relative flex aspect-square w-full items-center justify-center rounded-lg bg-card p-4 shadow-inner transition-all duration-300 ${isZoomed ? 'max-w-[320px] sm:max-w-[512px]' : 'max-w-[256px]'}`}>
+          <div className="flex flex-col items-center justify-center space-y-4 bg-black/20 p-6 sm:p-8 md:border-l">
+            <div className={`relative flex aspect-square w-full items-center justify-center rounded-lg bg-card/50 p-4 shadow-inner backdrop-blur-sm transition-all duration-300 ${isZoomed ? 'max-w-[320px] sm:max-w-[512px]' : 'max-w-[256px]'}`}>
               {isPending ? (
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-10 w-10 animate-spin" />
@@ -180,7 +276,7 @@ export function QRGenerator() {
                 </div>
               ) : qrCodeSvg ? (
                 <>
-                    <div dangerouslySetInnerHTML={{ __html: qrCodeSvg }} className="h-full w-full" />
+                    <div dangerouslySetInnerHTML={{ __html: qrCodeSvg }} className="h-full w-full rounded-md bg-white p-2 transition-all duration-500 ease-in-out transform-gpu scale-100" />
                     <Button onClick={() => setIsZoomed(!isZoomed)} variant="outline" size="icon" className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm">
                         {isZoomed ? <ZoomOut /> : <ZoomIn />}
                     </Button>
@@ -198,7 +294,7 @@ export function QRGenerator() {
                   <Download className="mr-2 h-4 w-4" />
                   Download
                 </Button>
-                 <Button onClick={() => form.handleSubmit(onSubmit)()} variant="outline" size="icon" aria-label="Regenerate QR Code" disabled={isPending}>
+                 <Button onClick={handleRegenerate} variant="outline" size="icon" aria-label="Regenerate QR Code" disabled={isPending}>
                     <RefreshCw className="h-4 w-4" />
                  </Button>
               </div>

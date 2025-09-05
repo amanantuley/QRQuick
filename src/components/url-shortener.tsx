@@ -66,7 +66,7 @@ export function UrlShortener() {
   };
 
   return (
-    <Card className="w-full overflow-hidden shadow-2xl shadow-primary/10 transition-all duration-300">
+    <Card className="w-full overflow-hidden border-0 bg-white/5 shadow-2xl shadow-primary/10 transition-all duration-300 backdrop-blur-lg">
       <CardContent className="p-6 sm:p-8">
         <h3 className="text-2xl font-semibold tracking-tight">Shorten a Long URL</h3>
         <p className="mt-2 text-muted-foreground">Enter a long URL to create a shortened version.</p>

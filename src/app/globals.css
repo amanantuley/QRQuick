@@ -43,25 +43,25 @@ body {
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
   .dark {
-    --background: 262 30% 10%;
-    --foreground: 300 67% 95%;
-    --card: 262 30% 12%;
-    --card-foreground: 300 67% 95%;
-    --popover: 262 30% 12%;
-    --popover-foreground: 300 67% 95%;
-    --primary: 262 52% 67%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 262 80% 58%;
     --primary-foreground: 262 52% 10%;
-    --secondary: 262 30% 20%;
-    --secondary-foreground: 300 67% 95%;
-    --muted: 262 30% 20%;
-    --muted-foreground: 300 67% 80%;
-    --accent: 231 48% 64%;
-    --accent-foreground: 231 48% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 262 30% 25%;
-    --input: 262 30% 25%;
-    --ring: 262 52% 67%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 262 80% 58%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -84,5 +84,27 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    background-image: linear-gradient(
+      45deg,
+      hsl(var(--primary)),
+      hsl(var(--accent)),
+      hsl(var(--primary))
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: text-gradient-animation 4s linear infinite;
+  }
+
+  @keyframes text-gradient-animation {
+    to {
+      background-position: 200% center;
+    }
   }
 }
